@@ -87,7 +87,26 @@ EOF
 sudo yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
 sudo systemctl enable --now kubelet
 ```
+Disable Docker, We will be using containerd as default runtime
+```
+systemctl stop docker
+systemctl disable docker
+```
+Make below entry to ```/etc/containerd.config.toml``` and disable previously added lines.
 
+```
+[plugins."io.containerd.grpc.v1.cri"]
+  sandbox_image = "registry.k8s.io/pause:3.9"
+
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+  SystemdCgroup = true
+```
+
+Restart Containerd:
+```
+systemctl restart containerd
+```
+---
 ## 🖥️ 5. Initialize Control Plane (Master Only)
 ```
 sudo kubeadm init --pod-network-cidr=10.244.0.0/16
