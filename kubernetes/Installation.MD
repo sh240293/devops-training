@@ -50,10 +50,10 @@ sudo firewall-cmd --permanent --add-port=10252/tcp       # Controller Manager
 sudo firewall-cmd --permanent --add-port=10250/tcp       # Kubelet
 ```
 Worker Nodes
-````
+```
 sudo firewall-cmd --permanent --add-port=10250/tcp       # Kubelet
 sudo firewall-cmd --permanent --add-port=30000-32767/tcp # NodePort range
-````
+```
 All Nodes (for Calico)
 ```
 sudo firewall-cmd --permanent --add-port=179/tcp         # BGP
@@ -83,7 +83,6 @@ gpgcheck=1
 gpgkey=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
 exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
 EOF
-```
 
 sudo yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
 sudo systemctl enable --now kubelet
