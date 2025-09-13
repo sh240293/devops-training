@@ -108,13 +108,14 @@ Verify Calico pods:
 ```
 kubectl get pods -n kube-system
 ```
+---
 ## 👷 7. Join Worker Nodes
 On each worker node, run the join command provided by kubeadm init, for example:
 ```
 sudo kubeadm join <MASTER_IP>:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>
 ```
-
-✅ 8. Verification
+---
+## ✅ 8. Verification
 On the master node:
 kubectl get nodes -o wide
 kubectl get pods -A -o wide
