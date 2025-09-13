@@ -12,6 +12,9 @@ We will use the pod network **10.244.0.0/16**.
 - Internet connectivity
 - `root` or `sudo` access
 
+We have below 2 servers
+Master: 192.168.0.150
+Worker1: 192.168.1.151
 ---
 
 ## ⚙️ 1. System Preparation (All Nodes)
@@ -87,7 +90,7 @@ EOF
 sudo yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
 sudo systemctl enable --now kubelet
 ```
-Disable Docker, We will be using containerd as default runtime
+Disable Docker, We will be using containerd as default runtime (do same in worker node too)
 ```
 systemctl stop docker
 systemctl disable docker
@@ -109,7 +112,7 @@ systemctl restart containerd
 ---
 ## 🖥️ 5. Initialize Control Plane (Master Only)
 ```
-sudo kubeadm init --pod-network-cidr=10.244.0.0/16
+kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=192.168.0.150
 ```
 Configure kubectl for the current user:
 ```
