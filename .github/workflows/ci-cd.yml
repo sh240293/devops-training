@@ -44,6 +44,5 @@ jobs:
           args: >
             -Dsonar.projectKey=django-app
             -Dsonar.projectName="Django Application"
-            -Dsonar.branch.name=${{ github.ref_name }}
             -Dsonar.python.coverage.reportPaths=coverage.xml
             -Dsonar.exclusions=**/migrations/**
