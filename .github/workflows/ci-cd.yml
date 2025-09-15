@@ -58,3 +58,15 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+
+      - name: Download SonarQube Report
+        run: |
+         curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
+          "${{ env.SONAR_HOST_URL }}/api/issues/search?componentKeys=django-app&resolved=false" \
+          -o sonar-issues.json
+
+      - name: Upload Sonar Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonar-issues-report
+          path: sonar-issues.json
