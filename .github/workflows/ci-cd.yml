@@ -13,7 +13,7 @@ env:
   APP_NAME: django-app
   TRIVY_PASS_THRESHOLD: 80
   # Update this with your SonarQube internal IP
-  SONAR_HOST_URL: http://192.168.0.151:30314
+  SONAR_HOST_URL: http://192.168.0.101:30314
 
 jobs:
   sonarqube:
@@ -70,3 +70,21 @@ jobs:
         with:
           name: sonar-issues-report
           path: sonar-issues.json
+
+  secrets-scan:
+    name: Secret Scan with Gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Scan for secrets
+        uses: zricethezav/gitleaks-action@master
+        with:
+          args: "--no-banner --report-format=json --report-path=gitleaks-report.json"
+
+      - name: Upload Gitleaks Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
