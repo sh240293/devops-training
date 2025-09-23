@@ -1,11 +1,13 @@
 [[rules]]
+id = "ignore-github-secrets"
 description = "Ignore GitHub Actions secrets"
 regex = '(\${{?\s*secrets\..*}}?)'
 tags = ["github-actions"]
-allowlist = { paths = ["<path-to-file-if-needed>"], values = ["SONAR_TOKEN", "ANOTHER_SECRET"] }
+allowlist = { paths = [], values = ["SONAR_TOKEN", "ANOTHER_SECRET"] }
 
 [[rules]]
+id = "ignore-key-py"
 description = "Ignore key.py entirely"
 regex = ".*"
 tags = ["allowlist"]
-allowlist = { paths = ["key.py"], values = [] }  # empty values means ignore everything in the file
+allowlist = { paths = ["key.py"], values = [] }
