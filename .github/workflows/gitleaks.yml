@@ -1,28 +1,30 @@
-name: Django secrets scan
+name: Django Secrets Scan
 
 on:
   push:
-    branches: [ ci-cd ]
+    branches: [ci-cd]
   pull_request:
-    branches: [ ci-cd ]
-
+    branches: [ci-cd]
 
 jobs:
   secrets-scan:
     name: Secret Scan with Gitleaks
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Scan for secrets
-        uses: zricethezav/gitleaks-action@master
         with:
-         config: .gitleaks.toml
-         report_format: sarif
-         report_path: results.sarif
-         redact: true
-         verbose: true
+          fetch-depth: 0  
+          
+      - name: Scan for secrets
+        uses: zricethezav/gitleaks-action@v2.3.9
+        with:
+          config: .gitleaks.toml
+          report_format: sarif
+          report_path: results.sarif
+          redact: true
+          verbose: true
         env:
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
@@ -30,4 +32,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gitleaks-report
-          path: gitleaks-report.json
+          path: results.sarif
