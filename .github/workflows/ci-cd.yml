@@ -80,20 +80,22 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+  
       - name: Scan for secrets
-        uses: zricethezav/gitleaks-action@master
+        uses: zricethezav/gitleaks-action@v8.17.0
         with:
-         config: .gitleaks.toml
-         report_format: sarif
-         report_path: results.sarif
-         redact: true
-         verbose: true
+          config: .gitleaks.toml
+          report_format: sarif
+          report_path: results.sarif
+          redact: true
+          verbose: false
+          scan: commit   # scan only the latest commit
         env:
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
-
+  
       - name: Upload Gitleaks Report
         uses: actions/upload-artifact@v4
         with:
           name: gitleaks-report
-          path: gitleaks-report.json
+          path: results.sarif
+
