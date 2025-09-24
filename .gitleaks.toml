@@ -11,3 +11,10 @@ description = "Ignore key.py entirely"
 regex = ".*"
 tags = ["allowlist"]
 allowlist = { paths = ["key.py"], values = [] }
+
+[[rules]]
+id = "ignore-dockerfile-secrets"
+description = "Ignore secrets in Dockerfile"
+regex = ".*"
+tags = ["allowlist"]
+allowlist = { paths = ["Dockerfile"], values = [] }

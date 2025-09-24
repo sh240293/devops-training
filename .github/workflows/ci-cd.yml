@@ -84,7 +84,11 @@ jobs:
       - name: Scan for secrets
         uses: zricethezav/gitleaks-action@master
         with:
-          args: "--no-banner --report-format=sarif --report-path=results.sarif"
+         config: .gitleaks.toml
+         report_format: sarif
+         report_path: results.sarif
+         redact: true
+         verbose: true
         env:
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
