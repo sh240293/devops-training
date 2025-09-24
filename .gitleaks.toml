@@ -18,3 +18,7 @@ description = "Ignore secrets in Dockerfile"
 regex = ".*"
 tags = ["allowlist"]
 allowlist = { paths = ["Dockerfile"], values = [] }
+
+[[allowlist]]
+description = "Ignore all GitHub Actions workflows"
+paths = [".github/workflows/"]
