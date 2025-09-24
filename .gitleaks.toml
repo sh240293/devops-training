@@ -19,6 +19,10 @@ regex = ".*"
 tags = ["allowlist"]
 allowlist = { paths = ["Dockerfile"], values = [] }
 
-[[allowlist]]
+# Convert global allowlist to a dummy rule
+[[rules]]
+id = "ignore-github-workflows"
 description = "Ignore all GitHub Actions workflows"
-paths = [".github/workflows/"]
+regex = ".*"
+tags = ["allowlist"]
+allowlist = { paths = [".github/workflows/"], values = [] }
