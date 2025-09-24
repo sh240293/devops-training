@@ -82,7 +82,7 @@ jobs:
         uses: actions/checkout@v4
   
       - name: Scan for secrets
-        uses: zricethezav/gitleaks-action@v8.17.0
+        uses: zricethezav/gitleaks-action@v8.28.0
         with:
           config: .gitleaks.toml
           report_format: sarif
