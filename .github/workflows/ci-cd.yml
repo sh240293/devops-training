@@ -84,7 +84,7 @@ jobs:
       - name: Scan for secrets
         uses: zricethezav/gitleaks-action@master
         with:
-          args: "--no-banner --report-format=json --report-path=gitleaks-report.json"
+          args: "--no-banner --report-format=sarif --report-path=results.sarif"
         env:
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
