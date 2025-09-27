@@ -12,7 +12,7 @@ env:
 jobs:
   sonarqube:
     name: SonarQube Scan
-    runs-on: ubuntu-latest  # easier than self-hosted for testing
+    runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
