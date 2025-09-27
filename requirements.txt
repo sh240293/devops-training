@@ -1,0 +1,5 @@
+## Web framework
+flask==2.2.5 
+
+## Testing
+pytest==7.3.0 
