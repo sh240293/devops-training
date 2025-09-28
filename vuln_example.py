@@ -11,7 +11,7 @@ from flask_limiter.util import get_remote_address
 app = Flask(__name__)
 
 # Security configuration
-app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
 app.config['WTF_CSRF_ENABLED'] = True
 app.config['WTF_CSRF_TIME_LIMIT'] = 3600
 

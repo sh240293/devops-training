@@ -2,6 +2,7 @@
 Test cases for vuln_example.py
 """
 import pytest
+import os
 from vuln_example import app
 
 class TestVulnExample:
@@ -9,9 +10,19 @@ class TestVulnExample:
     
     def setup_method(self):
         """Set up test client for each test."""
-        # Disable CSRF for testing
+        # Set test environment variables
+        os.environ['SECRET_KEY'] = 'test-secret-key'
+        # CSRF disabled for testing only - this is safe because:
+        # 1. Tests run in isolated environment
+        # 2. No real user interactions
+        # 3. CSRF is enabled in production
         app.config['WTF_CSRF_ENABLED'] = False
         self.client = app.test_client()
+    
+    def teardown_method(self):
+        """Clean up after each test."""
+        # Re-enable CSRF for production safety
+        app.config['WTF_CSRF_ENABLED'] = True
     
     def test_home_endpoint(self):
         """Test home endpoint returns correct message."""
