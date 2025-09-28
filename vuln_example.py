@@ -3,6 +3,7 @@ Secure command execution service.
 Provides safe command execution with whitelist validation.
 """
 import os
+import secrets
 from flask import request, Flask, jsonify
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
@@ -11,7 +12,11 @@ from flask_limiter.util import get_remote_address
 app = Flask(__name__)
 
 # Security configuration
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+# Generate a secure random key if not provided via environment
+secret_key = os.environ.get('SECRET_KEY')
+if not secret_key:
+    secret_key = secrets.token_hex(32)
+app.config['SECRET_KEY'] = secret_key
 app.config['WTF_CSRF_ENABLED'] = True
 app.config['WTF_CSRF_TIME_LIMIT'] = 3600
 
