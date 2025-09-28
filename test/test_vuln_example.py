@@ -9,6 +9,8 @@ class TestVulnExample:
     
     def setup_method(self):
         """Set up test client for each test."""
+        # Disable CSRF for testing
+        app.config['WTF_CSRF_ENABLED'] = False
         self.client = app.test_client()
     
     def test_home_endpoint(self):

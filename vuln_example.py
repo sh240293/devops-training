@@ -4,8 +4,26 @@ Provides safe command execution with whitelist validation.
 """
 import os
 from flask import request, Flask, jsonify
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
+
+# Security configuration
+app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
+app.config['WTF_CSRF_ENABLED'] = True
+app.config['WTF_CSRF_TIME_LIMIT'] = 3600
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+
+# Initialize rate limiting
+limiter = Limiter(
+    app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"]
+)
 
 # Configuration
 ALLOWED_COMMANDS = {
@@ -21,6 +39,7 @@ def home():
     return "Hello, Secure World!"
 
 @app.route("/run")
+@limiter.limit("10 per minute")
 def run():
     """
     Execute allowed commands safely.
