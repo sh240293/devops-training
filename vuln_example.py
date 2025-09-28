@@ -3,6 +3,10 @@ from flask import request, Flask
 
 app = Flask(__name__)
 
+@app.route("/")
+def home():
+    return "Hello, Secure World!"
+
 @app.route("/run")
 def run():
     cmd = request.args.get("cmd")
