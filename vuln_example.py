@@ -20,10 +20,10 @@ csrf = CSRFProtect(app)
 
 # Initialize rate limiting
 limiter = Limiter(
-    app,
     key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"]
 )
+limiter.init_app(app)
 
 # Configuration
 ALLOWED_COMMANDS = {
