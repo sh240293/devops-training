@@ -2,9 +2,9 @@ name: Snyk Security Scan
 
 on:
   push:
-    branches: [ demo ]
+    branches: [ "demo" ]
   pull_request:
-    branches: [ demo ]
+    branches: [ "demo" ]
 
 jobs:
   snyk:
@@ -17,25 +17,38 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10.15'
+          python-version: "3.10.15"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/python@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}   # set in GitHub repo secrets
-        with:
-          args: --file=requirements.txt --package-manager=pip --severity-threshold=high
+      - name: Install Snyk CLI
+        run: |
+          npm install -g snyk snyk-to-html
 
-      # Optional: Upload results as SARIF to GitHub Security tab
-      - name: Upload reports as artifacts
+      # Run test - fail build if high/critical vulnerabilities found
+      - name: Run Snyk test (fail on high vulns)
+        run: |
+          snyk test --file=requirements.txt --package-manager=pip \
+            --severity-threshold=high \
+            --json | snyk-to-html -o snyk-report.html
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      # Upload HTML report as artifact
+      - name: Upload Snyk HTML report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: snyk-reports
-          path: |
-            snyk-report.json
-            snyk-report.html
+          name: snyk-report
+          path: snyk-report.html
+
+      # Monitor - upload snapshot to Snyk UI
+      - name: Run Snyk monitor (upload to UI)
+        run: |
+          snyk monitor --file=requirements.txt --package-manager=pip
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
