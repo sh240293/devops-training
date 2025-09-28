@@ -44,6 +44,20 @@ class TestVulnExample:
         # Should return username
         assert len(response.data) > 0
     
+    def test_run_allowed_command_date(self):
+        """Test that date command is allowed and executes."""
+        response = self.client.get('/run?cmd=date')
+        assert response.status_code == 200
+        # Should return date
+        assert len(response.data) > 0
+    
+    def test_info_endpoint(self):
+        """Test info endpoint returns system information."""
+        response = self.client.get('/info')
+        assert response.status_code == 200
+        assert b"allowed_commands" in response.data
+        assert b"operational" in response.data
+    
     def test_run_disallowed_command(self):
         """Test that disallowed commands are rejected."""
         response = self.client.get('/run?cmd=rm')

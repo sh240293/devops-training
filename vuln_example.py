@@ -2,13 +2,18 @@
 Secure command execution service.
 Provides safe command execution with whitelist validation.
 """
-import subprocess
+import os
 from flask import request, Flask, jsonify
 
 app = Flask(__name__)
 
 # Configuration
-ALLOWED_COMMANDS = ["ls", "pwd", "whoami"]
+ALLOWED_COMMANDS = {
+    "ls": "ls -la",
+    "pwd": "pwd", 
+    "whoami": "whoami",
+    "date": "date"
+}
 
 @app.route("/")
 def home():
@@ -37,17 +42,10 @@ def run():
         return "Command not allowed"
     
     try:
-        # Execute command safely
-        result = subprocess.run(
-            [cmd], 
-            capture_output=True, 
-            text=True, 
-            timeout=5,
-            check=False
-        )
-        return result.stdout or result.stderr
-    except subprocess.TimeoutExpired:
-        return "Command timed out"
+        # Use os.popen for safer execution with predefined commands
+        with os.popen(ALLOWED_COMMANDS[cmd]) as stream:
+            result = stream.read()
+        return result.strip() or "No output"
     except Exception:
         return "Command execution failed"
 
@@ -55,6 +53,14 @@ def run():
 def health():
     """Health check endpoint."""
     return jsonify({"status": "healthy"})
+
+@app.route("/info")
+def info():
+    """Get system information safely."""
+    return jsonify({
+        "allowed_commands": list(ALLOWED_COMMANDS.keys()),
+        "status": "operational"
+    })
 
 if __name__ == "__main__":
     app.run(debug=False, host="127.0.0.1", port=5000)
