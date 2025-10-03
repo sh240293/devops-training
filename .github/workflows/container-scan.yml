@@ -27,17 +27,3 @@ jobs:
           ignore-unfixed: true          # Ignore vulnerabilities with no fix
           vuln-type: 'os,library'       # Scan both OS packages & libraries
           severity: 'CRITICAL,HIGH'     # Fail only on CRITICAL/HIGH
-        id: trivy  
-
-      # Save report to file
-      - name: Save Trivy output to file
-        if: always()
-        run: echo "${{ steps.trivy.outputs.result }}" > trivy-report.txt
-      
-      # Upload report
-      - name: Upload Trivy report as artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-report
-          path: trivy-report.txt
