@@ -1,0 +1,42 @@
+name: Gitleaks Secret Scan
+
+on:
+  push:
+    branches: [ demo ]
+  pull_request:
+    branches: [ demo ]
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    name: Gitleaks Secret Scan
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks (JSON report)
+        id: gitleaks
+        uses: zricethezav/gitleaks-action@master
+        with:
+          args: detect --source . --no-banner --report-format json --report-path gitleaks-report.json || true
+
+      - name: Print Human Readable Report
+        run: |
+          if [ -s gitleaks-report.json ]; then
+            echo "🚨 Potential Secrets Found:"
+            cat gitleaks-report.json | jq -r '
+              .[] |
+              "File: \(.File)\nLine: \(.StartLine)\nRule: \(.RuleID)\nSecret: \(.Secret)\nCommit: \(.Commit)\n--"'
+          else
+            echo "✅ No secrets found!"
+          fi
+
+      - name: Upload Report as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+
