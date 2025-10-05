@@ -1,0 +1,41 @@
+name: OWASP ZAP DAST Scan
+
+on:
+  workflow_dispatch:   # Trigger manually only 
+
+jobs:
+  zap_scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Start app
+        run: |
+          python app.py &
+          # Wait for the app to be up
+          sleep 10
+          # Check if app is running
+          curl -f http://localhost:5000 || exit 1
+
+      - name: Run OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.7.0
+        with:
+          target: "http://localhost:5000"
+          format: "html"
+          output: "zap-report.html"
+
+      - name: Upload ZAP report
+        uses: actions/upload-artifact@v3
+        with:
+          name: zap-report
+          path: zap-report.html
