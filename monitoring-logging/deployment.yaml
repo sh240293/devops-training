@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monitoring-demo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: monitoring-demo-app
+  template:
+    metadata:
+      labels:
+        app: monitoring-demo-app
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: monitoring-demo-app
+        image: devsecops-app:mon-log
+        ports:
+        - containerPort: 5000
+
