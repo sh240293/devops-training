@@ -5,8 +5,6 @@ on:
     workflows: ["CI - Unit Tests"]
     types:
       - completed
-    branches:
-      - demo  # Specify the branch where CI workflow runs
   workflow_dispatch:
 
 jobs:
