@@ -20,7 +20,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: demo
       
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
