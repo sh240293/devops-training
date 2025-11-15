@@ -1,0 +1,140 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_run:
+    workflows: ["Container Build and Scan"]
+    types:
+      - completed
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: read
+      actions: read  # Required to read artifacts from other workflow runs
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+      
+      - name: Get image info from previous workflow
+        id: image-info
+        run: |
+          # Determine image name (handle Docker Hub vs other registries)
+          REGISTRY="${{ secrets.CONTAINER_REGISTRY }}"
+          REPO="${{ github.repository }}"
+          
+          # For Docker Hub (docker.io or empty), use just username/repo format
+          # For other registries, use registry/username/repo format
+          if [ -z "$REGISTRY" ] || [ "$REGISTRY" == "docker.io" ]; then
+            # Docker Hub: username/repository-name
+            IMAGE_NAME="$REPO"
+          else
+            # Other registries: registry/username/repository-name
+            IMAGE_NAME="$REGISTRY/$REPO"
+          fi
+          
+          # Try to get the exact tag from the previous workflow run
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            echo "Attempting to retrieve tag from previous workflow run..."
+            RUN_ID="${{ github.event.workflow_run.id }}"
+            REPO="${{ github.repository }}"
+            
+            # Get artifact download URL using GitHub API
+            # GITHUB_TOKEN needs 'actions: read' permission (defined in job permissions above)
+            ARTIFACTS_RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts")
+            
+            ARTIFACTS_URL=$(echo "$ARTIFACTS_RESPONSE" | \
+              jq -r '.artifacts[] | select(.name=="image-info") | .archive_download_url' | head -n1)
+            
+            if [ -n "$ARTIFACTS_URL" ] && [ "$ARTIFACTS_URL" != "null" ]; then
+              echo "Found artifact, downloading..."
+              # Download artifact (GitHub API requires Bearer token)
+              curl -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "$ARTIFACTS_URL" -o artifact.zip
+              
+              if [ -f artifact.zip ]; then
+                unzip -q artifact.zip -d ./image-info 2>/dev/null || true
+                if [ -f "./image-info/image-tag.txt" ]; then
+                  IMAGE_TAG=$(cat ./image-info/image-tag.txt | tr -d '\n\r ')
+                  echo "✓ Retrieved tag from previous workflow: $IMAGE_TAG"
+                else
+                  echo "⚠ Artifact downloaded but tag file not found, generating new tag"
+                  IMAGE_TAG=""
+                fi
+                rm -f artifact.zip 2>/dev/null || true
+              else
+                echo "⚠ Failed to download artifact, generating new tag"
+                IMAGE_TAG=""
+              fi
+            else
+              echo "⚠ Artifact 'image-info' not found in workflow run $RUN_ID, generating new tag"
+              IMAGE_TAG=""
+            fi
+          else
+            IMAGE_TAG=""
+          fi
+          
+          # If we don't have a tag, generate one (for manual trigger or if artifact retrieval failed)
+          if [ -z "$IMAGE_TAG" ]; then
+            echo "Generating new tag..."
+            if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+              COMMIT_SHA="${{ github.sha }}"
+            else
+              COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+            fi
+            
+            SHA_SHORT="${COMMIT_SHA: -5}"
+            EPOCH=$(date +%s)
+            IMAGE_TAG="${SHA_SHORT}-${EPOCH}"
+            echo "Generated tag: $IMAGE_TAG"
+          fi
+          
+          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Final image: $IMAGE_NAME:$IMAGE_TAG"
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gettext-base jq unzip curl
+      
+      - name: Deploy to Kubernetes
+        run: |
+          export IMAGE_NAME="${{ steps.image-info.outputs.image_name }}"
+          export IMAGE_TAG="${{ steps.image-info.outputs.image_tag }}"
+          export NAMESPACE="${{ secrets.K8S_NAMESPACE || 'default' }}"
+          
+          # Create namespace if it doesn't exist
+          kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Apply Kubernetes manifests
+          envsubst < k8s/deployment.yaml | kubectl apply -f - -n $NAMESPACE
+          envsubst < k8s/service.yaml | kubectl apply -f - -n $NAMESPACE
+          
+          # Wait for deployment to be ready
+          kubectl rollout status deployment/flask-app -n $NAMESPACE --timeout=5m
+      
+      - name: Verify deployment
+        run: |
+          export NAMESPACE="${{ secrets.K8S_NAMESPACE || 'default' }}"
+          kubectl get pods -n $NAMESPACE -l app=flask-app
+          kubectl get svc -n $NAMESPACE -l app=flask-app
+

@@ -1,54 +1,62 @@
 name: SonarQube Scan
 
 on:
-  push:
-    branches: [ demo ]
-  pull_request:
-    branches: [ demo ]
-
-env:
-  SONAR_HOST_URL: http://192.168.0.101:30314
+  workflow_run:
+    workflows: ["CI - Unit Tests"]
+    types:
+      - completed
+  workflow_dispatch:
 
 jobs:
-  sonarqube:
-    name: SonarQube Scan
-    runs-on: self-hosted
+  sonar-scan:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
+          fetch-depth: 0  # Shallow clones should be disabled for better analysis
+      
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10.15'
-
+          python-version: '3.10'
+          cache: 'pip'
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-cov
-
-      - name: Run tests & generate coverage
-        run: |
-          pytest --cov=./ --cov-report=xml
-
-      - name: Run SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v4
+      
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results
+          path: ./
+        continue-on-error: true
+      
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         with:
           args: >
-            -Dsonar.projectKey=myproject
-            -Dsonar.projectName="myproject"
-            -Dsonar.sources=.
-            -Dsonar.python.version=3.10
             -Dsonar.python.coverage.reportPaths=coverage.xml
-
-      - name: Check SonarQube Quality Gate
-        uses: SonarSource/sonarqube-quality-gate-action@v1
+            -Dsonar.python.xunit.reportPath=test-results.xml
+      
+      - name: SonarQube Quality Gate Check
+        id: sonarqube-quality-gate-check
+        uses: sonarsource/sonarqube-quality-gate-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        continue-on-error: true
+      
+      - name: Check Quality Gate status
+        if: steps.sonarqube-quality-gate-check.outcome == 'failure'
+        run: |
+          echo "Quality Gate failed!"
+          exit 1

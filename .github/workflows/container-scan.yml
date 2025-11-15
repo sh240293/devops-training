@@ -1,29 +1,144 @@
-name: Container Security Scan 
+name: Container Build and Scan
 
 on:
-  push:
-    branches: [ "demo" ]
-  pull_request:
+  workflow_run:
+    workflows: ["SonarQube Scan"]
+    types:
+      - completed
+  workflow_dispatch:
 
 jobs:
-  image-scan:
+  build-and-scan:
+    name: Build Docker Image and Scan
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
     steps:
-      # Checkout repo
       - name: Checkout code
         uses: actions/checkout@v4
-
-      # Build Docker image
+      
+      - name: Generate image tag
+        id: image-tag
+        run: |
+          # Get last 5 characters of commit SHA
+          SHA="${{ github.sha }}"
+          SHA_SHORT="${SHA: -5}"
+          # Get epoch timestamp
+          EPOCH=$(date +%s)
+          # Combine: last5chars-epoch
+          IMAGE_TAG="${SHA_SHORT}-${EPOCH}"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          echo "Generated tag: $IMAGE_TAG (from SHA: $SHA)"
+      
+      - name: Set image name
+        id: image-name
+        run: |
+          REGISTRY="${{ secrets.CONTAINER_REGISTRY }}"
+          REPO="${{ github.repository }}"
+          
+          # For Docker Hub (docker.io or empty), use just username/repo format
+          # For other registries, use registry/username/repo format
+          if [ -z "$REGISTRY" ] || [ "$REGISTRY" == "docker.io" ]; then
+            # Docker Hub: username/repository-name
+            IMAGE_NAME="$REPO"
+            REGISTRY_FOR_LOGIN=""  # Empty means Docker Hub (default)
+          else
+            # Other registries: registry/username/repository-name
+            IMAGE_NAME="$REGISTRY/$REPO"
+            REGISTRY_FOR_LOGIN="$REGISTRY"
+          fi
+          
+          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+          echo "registry_for_login=$REGISTRY_FOR_LOGIN" >> $GITHUB_OUTPUT
+          echo "Using image: $IMAGE_NAME"
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.image-name.outputs.registry_for_login }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+        continue-on-error: true
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image-name.outputs.image_name }}
+          tags: |
+            type=raw,value=${{ steps.image-tag.outputs.image_tag }}
+            type=raw,value=latest,enable={{is_default_branch}}
+      
       - name: Build Docker image
-        run: docker build -t devsecops-app:latest .
-
-      # Run Trivy scan
-      - name: Run Trivy vulnerability scanner
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Get image reference
+        id: image-ref
+        run: |
+          # Get the first tag from metadata (SHA-based tag)
+          IMAGE_REF=$(echo "${{ steps.meta.outputs.tags }}" | head -n1 | xargs)
+          echo "image_ref=$IMAGE_REF" >> $GITHUB_OUTPUT
+          echo "Using image: $IMAGE_REF"
+      
+      - name: Run Trivy vulnerability scanner (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'devsecops-app:latest'
-          format: 'table'               # Options: table, json, sarif, template
-          exit-code: '1'                # Fail if vulnerabilities are found
-          ignore-unfixed: true          # Ignore vulnerabilities with no fix
-          vuln-type: 'os,library'       # Scan both OS packages & libraries
-          severity: 'CRITICAL,HIGH'     # Fail only on CRITICAL/HIGH
+          image-ref: ${{ steps.image-ref.outputs.image_ref }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          ignore-unfixed: false
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Run Trivy vulnerability scanner (Check)
+        id: trivy-check
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.image-ref.outputs.image_ref }}
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: false
+      
+      - name: Save image info
+        if: success()
+        run: |
+          echo "IMAGE_NAME=${{ steps.image-name.outputs.image_name }}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${{ steps.image-tag.outputs.image_tag }}" >> $GITHUB_ENV
+          echo "IMAGE_FULL=${{ steps.image-ref.outputs.image_ref }}" >> $GITHUB_ENV
+      
+      - name: Save tag for deployment
+        if: success()
+        run: |
+          echo "${{ steps.image-tag.outputs.image_tag }}" > image-tag.txt
+          echo "${{ steps.image-name.outputs.image_name }}" > image-name.txt
+      
+      - name: Upload image tag artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-info
+          path: |
+            image-tag.txt
+            image-name.txt
+          retention-days: 1
