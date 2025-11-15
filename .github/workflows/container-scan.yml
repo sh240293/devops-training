@@ -21,6 +21,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_branch || github.ref }}
+          fetch-depth: 0
+      
+      - name: Verify checkout and list files
+        run: |
+          echo "Current branch: $(git branch --show-current)"
+          echo "Current commit: $(git rev-parse HEAD)"
+          echo "Files in current directory:"
+          ls -la
+          echo "Checking for Dockerfile:"
+          if [ -f "Dockerfile" ]; then
+            echo "✓ Dockerfile found"
+            cat Dockerfile
+          else
+            echo "✗ Dockerfile NOT found!"
+            echo "Searching for Dockerfile:"
+            find . -name "Dockerfile*" -type f 2>/dev/null || echo "No Dockerfile found"
+          fi
       
       - name: Generate image tag
         id: image-tag
@@ -86,6 +103,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          no-cache: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
