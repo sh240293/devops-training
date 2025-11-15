@@ -17,26 +17,53 @@ jobs:
       actions: read
     
     steps:
+      - name: Debug workflow run context
+        run: |
+          echo "Workflow run event:"
+          echo "head_branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "head_sha: ${{ github.event.workflow_run.head_sha }}"
+          echo "head_repository: ${{ github.event.workflow_run.head_repository.full_name }}"
+          echo "github.ref: ${{ github.ref }}"
+          echo "github.sha: ${{ github.sha }}"
+      
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_branch || github.ref }}
+          ref: ${{ github.event.workflow_run.head_branch || github.event.workflow_run.head_sha || 'demo' }}
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Verify checkout and list files
         run: |
-          echo "Current branch: $(git branch --show-current)"
+          echo "=== Checkout Verification ==="
+          echo "Current branch: $(git branch --show-current || echo 'detached HEAD')"
           echo "Current commit: $(git rev-parse HEAD)"
-          echo "Files in current directory:"
+          echo "Remote branches:"
+          git branch -r | head -5
+          echo ""
+          echo "=== Files in current directory ==="
           ls -la
-          echo "Checking for Dockerfile:"
+          echo ""
+          echo "=== Checking for Dockerfile ==="
           if [ -f "Dockerfile" ]; then
-            echo "✓ Dockerfile found"
-            cat Dockerfile
+            echo "✓ Dockerfile found in root"
+            head -5 Dockerfile
           else
-            echo "✗ Dockerfile NOT found!"
+            echo "✗ Dockerfile NOT found in root!"
             echo "Searching for Dockerfile:"
-            find . -name "Dockerfile*" -type f 2>/dev/null || echo "No Dockerfile found"
+            find . -name "Dockerfile*" -type f 2>/dev/null | head -10 || echo "No Dockerfile found"
+            echo ""
+            echo "Git status:"
+            git status
+            echo ""
+            echo "Attempting to checkout demo branch..."
+            git fetch origin demo:demo 2>&1 || echo "Failed to fetch demo branch"
+            git checkout demo 2>&1 || echo "Failed to checkout demo branch"
+            if [ -f "Dockerfile" ]; then
+              echo "✓ Dockerfile found after checking out demo branch"
+            else
+              echo "✗ Dockerfile still not found!"
+            fi
           fi
       
       - name: Generate image tag
