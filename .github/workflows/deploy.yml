@@ -5,6 +5,8 @@ on:
     workflows: ["Container Build and Scan"]
     types:
       - completed
+    branches:
+      - demo  # Specify the branch where Container Build and Scan workflow runs
   workflow_dispatch:
 
 jobs:

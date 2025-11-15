@@ -5,13 +5,18 @@ on:
     workflows: ["CI - Unit Tests"]
     types:
       - completed
+    branches:
+      - demo  # Specify the branch where CI workflow runs
   workflow_dispatch:
 
 jobs:
   sonar-scan:
     name: SonarQube Analysis
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: read
+      actions: read  # Required to read workflow run information
     
     steps:
       - name: Checkout code
@@ -35,6 +40,8 @@ jobs:
         with:
           name: test-results
           path: ./
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
         continue-on-error: true
       
       - name: SonarQube Scan
