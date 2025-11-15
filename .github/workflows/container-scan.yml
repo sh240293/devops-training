@@ -21,12 +21,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch || github.ref }}
       
       - name: Generate image tag
         id: image-tag
         run: |
-          # Get last 5 characters of commit SHA
-          SHA="${{ github.sha }}"
+          # Get last 5 characters of commit SHA from triggering workflow
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
           SHA_SHORT="${SHA: -5}"
           # Get epoch timestamp
           EPOCH=$(date +%s)
