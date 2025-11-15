@@ -3,8 +3,7 @@ name: Container Build and Scan
 on:
   workflow_run:
     workflows: ["SonarQube Scan"]
-    types:
-      - completed
+    types: [completed]
   workflow_dispatch:
 
 jobs:
@@ -15,97 +14,54 @@ jobs:
     permissions:
       contents: read
       actions: read
-    
+
     steps:
-      - name: Debug workflow run context
-        run: |
-          echo "Workflow run event:"
-          echo "head_branch: ${{ github.event.workflow_run.head_branch }}"
-          echo "head_sha: ${{ github.event.workflow_run.head_sha }}"
-          echo "head_repository: ${{ github.event.workflow_run.head_repository.full_name }}"
-          echo "github.ref: ${{ github.ref }}"
-          echo "github.sha: ${{ github.sha }}"
-      
-      - name: Checkout code
+      - name: Checkout demo branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_branch || github.event.workflow_run.head_sha || 'demo' }}
+          ref: demo
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Verify checkout and list files
+
+      - name: Verify checkout & Dockerfile
         run: |
-          echo "=== Checkout Verification ==="
-          echo "Current branch: $(git branch --show-current || echo 'detached HEAD')"
+          echo "Current branch: $(git branch --show-current)"
           echo "Current commit: $(git rev-parse HEAD)"
-          echo "Remote branches:"
-          git branch -r | head -5
-          echo ""
-          echo "=== Files in current directory ==="
+          echo "Files in repo:"
           ls -la
-          echo ""
-          echo "=== Checking for Dockerfile ==="
-          if [ -f "Dockerfile" ]; then
-            echo "✓ Dockerfile found in root"
-            head -5 Dockerfile
-          else
-            echo "✗ Dockerfile NOT found in root!"
-            echo "Searching for Dockerfile:"
-            find . -name "Dockerfile*" -type f 2>/dev/null | head -10 || echo "No Dockerfile found"
-            echo ""
-            echo "Git status:"
-            git status
-            echo ""
-            echo "Attempting to checkout demo branch..."
-            git fetch origin demo:demo 2>&1 || echo "Failed to fetch demo branch"
-            git checkout demo 2>&1 || echo "Failed to checkout demo branch"
-            if [ -f "Dockerfile" ]; then
-              echo "✓ Dockerfile found after checking out demo branch"
-            else
-              echo "✗ Dockerfile still not found!"
-            fi
-          fi
-      
+          echo "Checking Dockerfile:"
+          test -f Dockerfile && head -5 Dockerfile || { echo "❌ Dockerfile missing!"; exit 1; }
+
       - name: Generate image tag
         id: image-tag
         run: |
-          # Get last 5 characters of commit SHA from triggering workflow
-          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
-          SHA_SHORT="${SHA: -5}"
-          # Get epoch timestamp
+          SHA=$(git rev-parse --short=5 HEAD)
           EPOCH=$(date +%s)
-          # Combine: last5chars-epoch
-          IMAGE_TAG="${SHA_SHORT}-${EPOCH}"
+          IMAGE_TAG="${SHA}-${EPOCH}"
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-          echo "Generated tag: $IMAGE_TAG (from SHA: $SHA)"
-      
+          echo "Generated tag: $IMAGE_TAG"
+
       - name: Set image name
         id: image-name
         run: |
           REGISTRY="${{ secrets.CONTAINER_REGISTRY }}"
           REPO="${{ github.repository }}"
-          
-          # For Docker Hub (docker.io or empty), use just username/repo format
-          # For other registries, use registry/username/repo format
-          if [ -z "$REGISTRY" ] || [ "$REGISTRY" == "docker.io" ]; then
-            # Docker Hub: username/repository-name
+
+          if [ -z "$REGISTRY" ] || [ "$REGISTRY" = "docker.io" ]; then
             IMAGE_NAME="$REPO"
-            REGISTRY_FOR_LOGIN=""  # Empty means Docker Hub (default)
+            REGISTRY_FOR_LOGIN=""
           else
-            # Other registries: registry/username/repository-name
             IMAGE_NAME="$REGISTRY/$REPO"
             REGISTRY_FOR_LOGIN="$REGISTRY"
           fi
-          
+
           echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
           echo "registry_for_login=$REGISTRY_FOR_LOGIN" >> $GITHUB_OUTPUT
-          echo "Using image: $IMAGE_NAME"
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
@@ -113,7 +69,7 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
         continue-on-error: true
-      
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -122,7 +78,7 @@ jobs:
           tags: |
             type=raw,value=${{ steps.image-tag.outputs.image_tag }}
             type=raw,value=latest,enable={{is_default_branch}}
-      
+
       - name: Build Docker image
         id: build
         uses: docker/build-push-action@v5
@@ -130,20 +86,15 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          no-cache: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      
+
       - name: Get image reference
         id: image-ref
         run: |
-          # Get the first tag from metadata (SHA-based tag)
           IMAGE_REF=$(echo "${{ steps.meta.outputs.tags }}" | head -n1 | xargs)
           echo "image_ref=$IMAGE_REF" >> $GITHUB_OUTPUT
-          echo "Using image: $IMAGE_REF"
-      
+
       - name: Run Trivy vulnerability scanner (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
@@ -153,13 +104,13 @@ jobs:
           severity: 'CRITICAL,HIGH'
           exit-code: '0'
           ignore-unfixed: false
-      
+
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
-      
+
       - name: Run Trivy vulnerability scanner (Check)
         id: trivy-check
         uses: aquasecurity/trivy-action@master
@@ -169,20 +120,20 @@ jobs:
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
           ignore-unfixed: false
-      
+
       - name: Save image info
         if: success()
         run: |
           echo "IMAGE_NAME=${{ steps.image-name.outputs.image_name }}" >> $GITHUB_ENV
           echo "IMAGE_TAG=${{ steps.image-tag.outputs.image_tag }}" >> $GITHUB_ENV
           echo "IMAGE_FULL=${{ steps.image-ref.outputs.image_ref }}" >> $GITHUB_ENV
-      
+
       - name: Save tag for deployment
         if: success()
         run: |
           echo "${{ steps.image-tag.outputs.image_tag }}" > image-tag.txt
           echo "${{ steps.image-name.outputs.image_name }}" > image-name.txt
-      
+
       - name: Upload image tag artifact
         if: success()
         uses: actions/upload-artifact@v4
@@ -192,3 +143,4 @@ jobs:
             image-tag.txt
             image-name.txt
           retention-days: 1
+
