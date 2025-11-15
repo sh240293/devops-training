@@ -30,13 +30,13 @@ jobs:
           echo "Files in repo:"
           ls -la
           echo "Checking Dockerfile:"
-          test -f Dockerfile && head -5 Dockerfile || { echo "❌ Dockerfile missing!"; exit 1; }
+          test -f Dockerfile && head -5 Dockerfile || { echo "Dockerfile missing!"; exit 1; }
 
       - name: Generate image tag
         id: image-tag
         run: |
           SHA=$(git rev-parse --short=5 HEAD)
-          EPOCH=$(date +%s)
+          EPOCH=$(date +"%Y-%m-%d_%H:%M:%S")
           IMAGE_TAG="${SHA}-${EPOCH}"
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
